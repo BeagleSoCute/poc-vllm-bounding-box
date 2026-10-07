@@ -1,0 +1,41 @@
+# รันทั้งหน้าบ้านและหลังบ้าน:  docker compose up --build
+# แล้วเปิดเบราว์เซอร์ที่ http://localhost:5173
+
+services:
+  backend:
+    build: ./backend
+    environment:
+      # ไม่ใส่ค่าในไฟล์นี้ ค่าจะมาจากไฟล์ .env หรือจาก export ใน terminal
+      # ตัวที่ไม่ได้ตั้งจะไม่ถูกส่งเข้าไป หลังบ้านจึงใช้ค่าเริ่มต้นของตัวเอง
+      - GEMINI_API_KEY
+      - GEMINI_MODEL
+      - RENDER_DPI
+      # โมเดล self-hosted รันบนเครื่องนอก Docker (start.sh ในโฟลเดอร์ *-service ของแต่ละโมเดล)
+      # หลังบ้านเรียกผ่านที่อยู่เหล่านี้
+      - PADDLEOCR_VL_URL=http://host.docker.internal:8118
+      - MINERU_URL=http://host.docker.internal:8119
+      - DOTS_MOCR_URL=http://host.docker.internal:8120
+    extra_hosts:
+      # Docker Desktop มีชื่อนี้ให้อยู่แล้ว บรรทัดนี้ทำให้ใช้บน Linux ได้ด้วย
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # ใช้โฟลเดอร์เดียวกับตอนรันแบบไม่ใช้ Docker ข้อมูลจึงไม่หายเมื่อสร้าง container ใหม่
+      - ./backend/data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    environment:
+      - API_PROXY_TARGET=http://backend:8000
+    volumes:
+      # ผูกโค้ดของเครื่องเข้าไป แก้ไฟล์แล้วหน้าเว็บเปลี่ยนตามทันที (hot reload)
+      - ./frontend:/app
+      # node_modules ใช้ของในอิมเมจ ไม่ใช้ของเครื่อง (ไบนารีของ macOS/Windows ใช้ใน Linux ไม่ได้)
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
